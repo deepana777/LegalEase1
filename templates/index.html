@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>EduGenie - Learning Assistant</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/style.css"
+    >
+
+    <!-- Markdown -->
+    <script
+        src="https://cdn.jsdelivr.net/npm/marked/marked.min.js">
+    </script>
+
+    <!-- Security -->
+    <script
+        src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js">
+    </script>
+
+</head>
+
+
+<body>
+
+<div class="container">
+
+    <!-- Header -->
+
+    <header>
+
+        <div class="logo">
+            🎓 EduGenie
+        </div>
+
+        <p class="subtitle">
+            Your AI-Powered Learning Assistant
+        </p>
+
+    </header>
+
+
+    <!-- Input -->
+
+    <section class="input-card">
+
+        <label for="userInput">
+            Enter your question or topic
+        </label>
+
+        <textarea
+            id="userInput"
+            placeholder="Example: Photosynthesis, Python, DBMS, Operating Systems..."
+            rows="6"
+        ></textarea>
+
+
+        <label for="task">
+            Choose a learning mode
+        </label>
+
+        <select id="task">
+
+            <option value="explain">
+                📖 Explain
+            </option>
+
+            <option value="qa">
+                ❓ QnA
+            </option>
+
+            <option value="quiz">
+                🧠 Interactive Quiz
+            </option>
+
+            <option value="summarize">
+                📝 Summary
+            </option>
+
+            <option value="recommend">
+                🗺️ Learning Path
+            </option>
+
+        </select>
+
+
+        <button
+            id="submitButton"
+            onclick="submitTask()"
+        >
+            Ask EduGenie
+        </button>
+
+    </section>
+
+
+    <!-- Result -->
+
+    <section class="result-card">
+
+        <div class="result-header">
+
+            <h2>
+                ✨ Result
+            </h2>
+
+        </div>
+
+
+        <div id="answer">
+
+            <div class="welcome">
+
+                <h3>
+                    Welcome to EduGenie! 👋
+                </h3>
+
+                <p>
+                    Enter a topic above and let
+                    EduGenie help you learn.
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <footer>
+
+        <p>
+            EduGenie • AI-Powered Learning Assistant
+        </p>
+
+    </footer>
+
+</div>
+
+
+<script>
+
+
+/* =========================================
+   Global Quiz Variables
+========================================= */
+
+let currentQuiz = null;
+
+let currentQuestion = 0;
+
+let userAnswers = [];
+
+
+/* =========================================
+   Main Submit Function
+========================================= */
+
+async function submitTask() {
+
+    const input =
+        document
+            .getElementById("userInput")
+            .value
+            .trim();
+
+    const task =
+        document
+            .getElementById("task")
+            .value;
+
+    const answer =
+        document
+            .getElementById("answer");
+
+    const button =
+        document
+            .getElementById("submitButton");
+
+
+    if (!input) {
+
+        answer.innerHTML = `
+            <div class="error">
+                ⚠️ Please enter a question or topic.
+            </div>
+        `;
+
+        return;
+    }
+
+
+    button.disabled = true;
+
+    button.innerHTML =
+        "⏳ Thinking...";
+
+
+    answer.innerHTML = `
+        <div class="loading">
+
+            <div class="spinner"></div>
+
+            <p>
+                EduGenie is thinking...
+            </p>
+
+        </div>
+    `;
+
+
+    /* -----------------------------------------
+       Interactive Quiz
+    ----------------------------------------- */
+
+    if (task === "quiz") {
+
+        await generateQuiz(input);
+
+        button.disabled = false;
+
+        button.innerHTML =
+            "Ask EduGenie";
+
+        return;
+    }
+
+
+    /* -----------------------------------------
+       Other Features
+    ----------------------------------------- */
+
+    let endpoint;
+
+    let fieldName;
+
+
+    if (task === "explain") {
+
+        endpoint = "/explain";
+
+        fieldName = "topic";
+
+    }
+
+    else if (task === "qa") {
+
+        endpoint = "/qa";
+
+        fieldName = "question";
+
+    }
+
+    else if (task === "summarize") {
+
+        endpoint = "/summarize";
+
+        fieldName = "text";
+
+    }
+
+    else if (task === "recommend") {
+
+        endpoint =
+            "/learn/recommendations";
+
+        fieldName = "topic";
+    }
+
+
+    const formData =
+        new FormData();
+
+    formData.append(
+        fieldName,
+        input
+    );
+
+
+    try {
+
+        const response =
+            await fetch(
+                endpoint,
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                `Server error: ${response.status}`
+            );
+        }
+
+
+        const data =
+            await response.json();
+
+
+        if (data.answer) {
+
+            const html =
+                marked.parse(
+                    data.answer
+                );
+
+
+            answer.innerHTML =
+                DOMPurify.sanitize(html);
+
+        }
+
+        else {
+
+            answer.innerHTML = `
+                <div class="error">
+                    ❌ No answer was returned.
+                </div>
+            `;
+        }
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        answer.innerHTML = `
+            <div class="error">
+
+                <h3>
+                    ❌ Something went wrong
+                </h3>
+
+                <p>
+                    Unable to get a response
+                    from EduGenie.
+                </p>
+
+            </div>
+        `;
+
+    }
+
+    finally {
+
+        button.disabled = false;
+
+        button.innerHTML =
+            "Ask EduGenie";
+
+    }
+}
+
+
+/* =========================================
+   Generate Quiz
+========================================= */
+
+async function generateQuiz(topic) {
+
+    const answer =
+        document
+            .getElementById("answer");
+
+
+    const formData =
+        new FormData();
+
+    formData.append(
+        "topic",
+        topic
+    );
+
+
+    try {
+
+        const response =
+            await fetch(
+                "/quiz",
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                `Server error: ${response.status}`
+            );
+        }
+
+
+        const data =
+            await response.json();
+
+
+        if (!data.quiz) {
+
+            throw new Error(
+                "Quiz data was not returned."
+            );
+        }
+
+
+        currentQuiz =
+            data.quiz;
+
+        currentQuestion = 0;
+
+        userAnswers = [];
+
+
+        showQuestion();
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Quiz error:",
+            error
+        );
+
+
+        answer.innerHTML = `
+            <div class="error">
+
+                <h3>
+                    ❌ Quiz generation failed
+                </h3>
+
+                <p>
+                    ${error.message}
+                </p>
+
+                <p>
+                    Please try again.
+                </p>
+
+            </div>
+        `;
+    }
+}
+
+
+/* =========================================
+   Show Current Question
+========================================= */
+
+function showQuestion() {
+
+    const answer =
+        document
+            .getElementById("answer");
+
+
+    const question =
+        currentQuiz.questions[
+            currentQuestion
+        ];
+
+
+    const total =
+        currentQuiz.questions.length;
+
+
+    answer.innerHTML = `
+
+        <div class="quiz-container">
+
+            <div class="quiz-top">
+
+                <span class="quiz-badge">
+                    🧠 Quiz
+                </span>
+
+                <span class="quiz-progress">
+                    Question
+                    ${currentQuestion + 1}
+                    of
+                    ${total}
+                </span>
+
+            </div>
+
+
+            <div class="progress-bar">
+
+                <div
+                    class="progress-fill"
+                    style="
+                        width:
+                        ${(
+                            (currentQuestion + 1)
+                            / total
+                        ) * 100
+                        }%;
+                    "
+                ></div>
+
+            </div>
+
+
+            <h2 class="quiz-question">
+
+                ${escapeHTML(
+                    question.question
+                )}
+
+            </h2>
+
+
+            <div class="options">
+
+                ${question.options
+                    .map(
+                        (option, index) => `
+
+                        <button
+                            class="option"
+                            onclick="
+                                selectOption(${index})
+                            "
+                            id="option-${index}"
+                        >
+
+                            <span class="option-letter">
+                                ${String.fromCharCode(
+                                    65 + index
+                                )}
+                            </span>
+
+                            <span>
+                                ${escapeHTML(option)}
+                            </span>
+
+                        </button>
+
+                    `
+                    )
+                    .join("")}
+
+            </div>
+
+
+            <button
+                id="nextButton"
+                class="next-button"
+                onclick="submitQuizAnswer()"
+                disabled
+            >
+
+                ${
+                    currentQuestion === total - 1
+                    ? "Finish Quiz"
+                    : "Next Question →"
+                }
+
+            </button>
+
+        </div>
+
+    `;
+
+}
+
+
+/* =========================================
+   Select Option
+========================================= */
+
+let selectedOption = null;
+
+
+function selectOption(index) {
+
+    selectedOption = index;
+
+
+    document
+        .querySelectorAll(".option")
+        .forEach(
+            button => {
+
+                button.classList.remove(
+                    "selected"
+                );
+
+            }
+        );
+
+
+    const selected =
+        document.getElementById(
+            `option-${index}`
+        );
+
+
+    selected.classList.add(
+        "selected"
+    );
+
+
+    document
+        .getElementById(
+            "nextButton"
+        )
+        .disabled = false;
+}
+
+
+/* =========================================
+   Submit Quiz Answer
+========================================= */
+
+function submitQuizAnswer() {
+
+    if (
+        selectedOption === null
+    ) {
+
+        return;
+    }
+
+
+    const question =
+        currentQuiz.questions[
+            currentQuestion
+        ];
+
+
+    const isCorrect =
+        selectedOption ===
+        question.answer;
+
+
+    userAnswers.push({
+        selected: selectedOption,
+        correct: question.answer,
+        isCorrect: isCorrect
+    });
+
+
+    showAnswerFeedback(
+        question,
+        isCorrect
+    );
+}
+
+
+/* =========================================
+   Answer Feedback
+========================================= */
+
+function showAnswerFeedback(
+    question,
+    isCorrect
+) {
+
+    const answer =
+        document
+            .getElementById("answer");
+
+
+    const buttons =
+        document.querySelectorAll(
+            ".option"
+        );
+
+
+    buttons.forEach(
+        (button, index) => {
+
+            button.disabled = true;
+
+
+            if (
+                index === question.answer
+            ) {
+
+                button.classList.add(
+                    "correct"
+                );
+
+            }
+
+            else if (
+                index === selectedOption &&
+                !isCorrect
+            ) {
+
+                button.classList.add(
+                    "incorrect"
+                );
+
+            }
+
+        }
+    );
+
+
+    const feedback =
+        document.createElement(
+            "div"
+        );
+
+
+    feedback.className =
+        isCorrect
+        ? "feedback correct-feedback"
+        : "feedback incorrect-feedback";
+
+
+    feedback.innerHTML = `
+
+        <strong>
+            ${
+                isCorrect
+                ? "✅ Correct!"
+                : "❌ Incorrect"
+            }
+        </strong>
+
+        <p>
+            ${escapeHTML(
+                question.explanation
+            )}
+        </p>
+
+    `;
+
+
+    const quizContainer =
+        document.querySelector(
+            ".quiz-container"
+        );
+
+
+    quizContainer.appendChild(
+        feedback
+    );
+
+
+    const nextButton =
+        document.getElementById(
+            "nextButton"
+        );
+
+
+    nextButton.disabled = false;
+
+
+    nextButton.onclick =
+        goToNextQuestion;
+
+
+    nextButton.innerHTML =
+        currentQuestion ===
+        currentQuiz.questions.length - 1
+        ? "View Final Score →"
+        : "Next Question →";
+}
+
+
+/* =========================================
+   Next Question
+========================================= */
+
+function goToNextQuestion() {
+
+    currentQuestion++;
+
+    selectedOption = null;
+
+
+    if (
+        currentQuestion >=
+        currentQuiz.questions.length
+    ) {
+
+        showQuizResult();
+
+        return;
+    }
+
+
+    showQuestion();
+}
+
+
+/* =========================================
+   Final Quiz Result
+========================================= */
+
+function showQuizResult() {
+
+    const answer =
+        document
+            .getElementById("answer");
+
+
+    let score = 0;
+
+
+    userAnswers.forEach(
+        result => {
+
+            if (result.isCorrect) {
+
+                score++;
+
+            }
+
+        }
+    );
+
+
+    const total =
+        currentQuiz.questions.length;
+
+
+    const percentage =
+        Math.round(
+            (score / total) * 100
+        );
+
+
+    answer.innerHTML = `
+
+        <div class="quiz-result">
+
+            <div class="result-icon">
+                🎉
+            </div>
+
+            <h2>
+                Quiz Complete!
+            </h2>
+
+            <div class="score">
+
+                ${score}
+
+                <span>
+                    / ${total}
+                </span>
+
+            </div>
+
+            <p class="percentage">
+                ${percentage}% Correct
+            </p>
+
+
+            <p class="result-message">
+
+                ${
+                    percentage === 100
+                    ? "Excellent! You got every question correct. 🌟"
+                    : percentage >= 80
+                    ? "Great work! Keep learning. 👏"
+                    : percentage >= 60
+                    ? "Good effort! Review the explanations and try again. 💪"
+                    : "Keep practicing! Every attempt helps you learn. 📚"
+                }
+
+            </p>
+
+
+            <button
+                class="restart-button"
+                onclick="restartQuiz()"
+            >
+
+                🔄 Try Again
+
+            </button>
+
+        </div>
+
+    `;
+}
+
+
+/* =========================================
+   Restart Quiz
+========================================= */
+
+function restartQuiz() {
+
+    currentQuestion = 0;
+
+    userAnswers = [];
+
+    selectedOption = null;
+
+    showQuestion();
+}
+
+
+/* =========================================
+   HTML Escape
+========================================= */
+
+function escapeHTML(text) {
+
+    const div =
+        document.createElement(
+            "div"
+        );
+
+    div.textContent = text;
+
+    return div.innerHTML;
+}
+
+
+/* =========================================
+   Ctrl + Enter
+========================================= */
+
+document
+    .getElementById("userInput")
+    .addEventListener(
+        "keydown",
+        function(event) {
+
+            if (
+                event.ctrlKey &&
+                event.key === "Enter"
+            ) {
+
+                submitTask();
+
+            }
+
+        }
+    );
+
+</script>
+
+
+</body>
+
+</html>
